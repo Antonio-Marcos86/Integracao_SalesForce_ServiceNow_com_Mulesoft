@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:servicenow="http://www.mulesoft.org/schema/mule/servicenow" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/servicenow http://www.mulesoft.org/schema/mule/servicenow/current/mule-servicenow.xsd">
+	<flow name="specs-rest-json" doc:id="59ab49cc-d753-4285-9140-362f461126cd" >
+		<http:listener doc:name="Listener" doc:id="664b3830-0a5c-4a3d-a484-ae16e57ab606" config-ref="HTTP_Listener_config" path="sys4b/getAccount/{Id}/json">
+			<non-repeatable-stream />
+			<reconnect />
+			<http:response >
+				<http:body ><![CDATA[#[output application/json
+---
+ payload]]]></http:body>
+			</http:response>
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.Id as String]" doc:name="Set Variable" doc:id="a380a123-f1b1-4294-84f1-5db7b711b7f1" variableName="Id"/>
+		<salesforce:get-user-info doc:name="Conectar SalesForce" doc:id="44b9f6e8-2b55-4e9c-a9ea-ffd99a096fd1" config-ref="Salesforce_Config" />
+		<salesforce:query doc:name="Busca_Conta" doc:id="87f572d6-da46-4e8a-b0de-607b8390ab1c" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query><![CDATA[SELECT Id, Name, AccountNumber, YearStarted, AccountSource, Active__c,Phone
+FROM Account
+WHERE Id = ':Id']]></salesforce:salesforce-query>
+			<salesforce:parameters><![CDATA[#[output application/java
+---
+{
+	Id : vars.Id
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<set-payload value="#[payload]" doc:name="Set Payload" doc:id="bc05df9e-6e40-433c-b9b3-0e2c5abbb2a5" />
+		<ee:transform doc:name="Transform Message" doc:id="ccadc8a6-c067-46a0-a43b-0991a01a53b5" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+
+ Contas: payload map(data, index)->{
+    "Nome": data.Name,
+    "Id": data.Id,
+    "Telefone": data.Phone,
+    "Ano de início": data.YearStarted,
+    "Numero Da Conta": data.AccountNumber,
+    "Ativo": data.Active__c,
+    "tipo": data."type",
+    "Origem da conta": data.AccountSource
+
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="713f5f2f-e17f-495c-b74d-6c5ff4743994" message="#[payload]"/>
+	</flow>
+	<flow name="specs-rest-xml" doc:id="d46d2cb5-2f87-46b8-9ba5-8cd0ebfd4266" >
+		<http:listener doc:name="Listener" doc:id="fc8e70fb-c27b-400c-961e-d940765170f1" config-ref="HTTP_Listener_config" path="sys4b/getAccount/{origem}/xml" >
+			<non-repeatable-stream />
+			<reconnect />
+			<http:response >
+				<http:body ><![CDATA[#[output application/xml
+---
+ payload]]]></http:body>
+			</http:response>
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.origem as String]" doc:name="Captura uriParams" doc:id="a1854c42-ca4e-44de-916d-74a8da7e7c19" variableName="origem" />
+		<salesforce:get-user-info doc:name="Conectar SalesForce" doc:id="c3d34cef-d0b9-4466-bda0-d4ef0800e7f9" config-ref="Salesforce_Config" />
+		<salesforce:query doc:name="Busca_Contas" doc:id="ac819006-ad91-4cd8-b581-073434df136e" config-ref="Salesforce_Config" >
+			<salesforce:salesforce-query ><![CDATA[SELECT Id, Name, AccountNumber, YearStarted, AccountSource, Active__c, Phone
+FROM Account
+WHERE AccountSource = ':AccountSource']]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	AccountSource : vars.origem
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<set-payload value="#[payload]" doc:name="Set Payload" doc:id="48b10acd-768e-4b39-ad4d-1ef9e77e076a" />
+		<ee:transform doc:name="Transform Message" doc:id="128590ca-244f-4eb8-9d00-8571cf6d38cc" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+var resposta={"conta": payload}
+
+---
+{
+	Contas: resposta
+	
+}
+
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="3534a203-1042-4ac2-9b90-b41c86b3b825" message="#[payload]" />
+	</flow>
+</mule>

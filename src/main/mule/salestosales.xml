@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:servicenow="http://www.mulesoft.org/schema/mule/servicenow"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/servicenow http://www.mulesoft.org/schema/mule/servicenow/current/mule-servicenow.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+	<servicenow:config name="ServiceNow_Config" doc:name="ServiceNow Config" doc:id="dedb286f-4e6d-48d4-bcfe-34741913f65f" >
+		<servicenow:basic-connection username="admin" password="JvLfsRe5*=Z9" serviceAddress="https://dev127311.service-now.com/" />
+	</servicenow:config>
+	<flow name="ServiceNowCriarConta" doc:id="92cf734a-664d-476f-8b97-94fa5d9d4f87" >
+		<http:listener doc:name="Salesforce chama o endpoint" doc:id="e308167c-7287-4893-bd68-eac5bfecc13a" config-ref="HTTP_Listener_config" path="/Servicenow/CreateAccount" >
+			<ee:repeatable-file-store-stream bufferUnit="MB" />
+			<reconnect count="3" />
+			<http:response reasonPhrase="Conta criada no ServiceNow com sucesso!" />
+			<http:error-response reasonPhrase="Erro ao criar conta no ServiceNow" />
+		</http:listener>
+		<ee:transform doc:name="Transform Message" doc:id="93a9b048-1b8e-4b43-a555-c06b9f86330e">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 http://www.service-now.com/x_893299_projeto_s_conta
+---
+{
+	ns0#insert: {
+		idpedido: payload.IdPedido,
+		idsalesforce: payload.IdSalesforce,
+		name: payload.Name,
+		statuspedido: payload.StatusPedido,
+		telefone: payload.Telefone
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<servicenow:invoke service="x_893299_projeto_s_conta" operation="insert" doc:name="Cria Conta no  ServiceNow" doc:id="f687f11d-bc28-4ebc-994b-8980745812ae" config-ref="ServiceNow_Config" showReferenceValues="FALSE" >
+			<reconnect frequency="1000" count="3" />
+		</servicenow:invoke>
+		<ee:transform doc:name="Transform Message" doc:id="660de0b2-b4ac-4845-a93b-7c67f2a7580d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	resultado:payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="UpdateOrder" doc:id="8558370d-97f4-428b-b829-5bc392a4d0c3" >
+		<http:listener doc:name="Update Order" doc:id="0e1d3d75-3636-46ae-98a3-f35cef0f6526" config-ref="HTTP_Listener_config" path="/Salesforce/Update/Order" >
+			<non-repeatable-stream />
+			<reconnect />
+			<http:response >
+				<http:body ><![CDATA[#[output application/json
+---
+ payload]]]></http:body>
+			</http:response>
+		</http:listener>
+		<ee:transform doc:name="Transform Message" doc:id="c9e4f994-171a-4c67-9f25-fbdfb06266f2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+[{
+	Id: payload.Id,
+	Status: payload.Status
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:update doc:name="Update" doc:id="f771ede8-b1ed-4cbc-bc26-4669cf1972ad" config-ref="Salesforce_Config" type="Order" />
+		<set-payload value="#[payload]" doc:name="Set Payload" doc:id="a3868e29-8a59-4321-85b3-cf1f0e44ca5d" />
+	</flow>
+</mule>
